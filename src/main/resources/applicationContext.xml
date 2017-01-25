@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd
+       ">
+	<bean id="jmsConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+		<property name="brokerURL" value="tcp://0.0.0.0:61616" />
+	</bean>
+
+	<bean id="pooledConnectionFactory" class="org.apache.activemq.pool.PooledConnectionFactory"
+		init-method="start" destroy-method="stop">
+		<property name="maxConnections" value="8" />
+		<property name="connectionFactory" ref="jmsConnectionFactory" />
+	</bean>
+
+	<bean id="jmsConfig"
+		  class="org.apache.camel.component.jms.JmsConfiguration">
+		<property name="connectionFactory" ref="pooledConnectionFactory"/>
+		<property name="concurrentConsumers" value="10"/>
+		<property name="deliveryPersistent" value="true" />
+	</bean>
+
+	<bean id="activemq"
+		  class="org.apache.activemq.camel.component.ActiveMQComponent">
+		<property name="configuration" ref="jmsConfig"/>
+	</bean>
+
+	<bean id="replicationContentProcessor" class="com.poc.camel.processors.ReplicationContentProcessor"/>
+
+	<camelContext xmlns="http://camel.apache.org/schema/spring">
+		<route autoStartup="true">
+			<from uri="activemq:queue:aem-content" />
+			<setHeader headerName="Authorization">
+				<simple>Basic YWRtaW46YWRtaW4=</simple>
+			</setHeader>
+			<setHeader headerName="Action">
+				<simple>Activate</simple>
+			</setHeader>
+			<setHeader headerName="Path">
+				<simple>/content/fts/athens/en/copyright-policy</simple>
+			</setHeader>
+			<process ref="replicationContentProcessor"/>
+			<to uri="http://localhost:4503/bin/receive?sling:authRequestLogin=1" />
+		</route>
+	</camelContext>
+
+</beans>
